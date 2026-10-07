@@ -1,0 +1,13 @@
+{$PUBLIC_DOMAIN} {
+    encode gzip
+    @site path / /index.html /privacy.html /robots.txt
+    handle @site {
+        root * /srv
+        file_server
+    }
+    handle {
+        reverse_proxy ntfy:80 {
+            header_up X-Observer-Client-IP {remote_host}
+        }
+    }
+}

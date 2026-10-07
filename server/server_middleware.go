@@ -13,6 +13,7 @@ const (
 	contextRateVisitor contextKey = iota + 2586
 	contextTopic
 	contextMatrixPushKey
+	contextRequestID
 	contextVisitorIP // Client IP extracted in maybeAuthenticate; reused by the abuse ban-feed (see ban.Service.Record)
 )
 

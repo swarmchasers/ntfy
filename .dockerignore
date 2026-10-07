@@ -1,3 +1,7 @@
 dist
 */node_modules
 Dockerfile*
+.git
+observer/private-data
+observer/archives
+observer/.env

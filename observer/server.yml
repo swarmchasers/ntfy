@@ -1,0 +1,19 @@
+# Used by run-local.sh. Production uses the same settings with environment overrides.
+base-url: http://127.0.0.1:18879
+listen-http: 127.0.0.1:18879
+cache-file: observer/private-data/cache.db
+cache-duration: 720h
+cache-startup-queries: |
+  pragma journal_mode = WAL;
+  pragma synchronous = FULL;
+log-level: trace
+log-format: json
+log-file: observer/private-data/requests.jsonl
+# No credentials or account registration are needed for public topics.
+enable-signup: false
+enable-login: false
+attachment-cache-dir: ""
+message-size-limit: "4096"
+visitor-message-daily-limit: 1000
+# A reverse proxy must overwrite, not append to, an inbound spoofed IP header.
+behind-proxy: false

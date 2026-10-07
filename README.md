@@ -1,3 +1,5 @@
+> **Swarmchasers fork:** Adds request IDs and records which messages were written to each subscriber. See [deployment and logging notes](observer/README.md).
+
 ![ntfy](web/public/static/images/ntfy.png)
 
 # ntfy.sh | Send push notifications to your phone or desktop via PUT/POST

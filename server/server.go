@@ -533,6 +533,9 @@ func (s *Server) closeDatabases() {
 
 // handle is the main entry point for all HTTP requests
 func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
+	requestID := util.RandomString(32)
+	r = r.WithContext(context.WithValue(r.Context(), contextRequestID, requestID))
+	w.Header().Set("X-Request-ID", requestID)
 	r, v, err := s.maybeAuthenticate(r) // Note: Always returns v (and r, with the client IP in its context), even on error
 	if err != nil {
 		s.handleError(w, r, v, err)
@@ -1026,7 +1029,11 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request, v *visito
 		return err
 	}
 	metrics.MessagesPublishedSuccess.Inc()
-	return s.writeJSON(w, m.ForJSON())
+	if err := s.writeJSON(w, m.ForJSON()); err != nil {
+		return err
+	}
+	logvrm(v, r, m).Tag(tagPublish).Field("observation_event", "message_published").Debug("Message published")
+	return nil
 }
 
 func (s *Server) handlePublishMatrix(w http.ResponseWriter, r *http.Request, v *visitor) error {
@@ -1499,6 +1506,7 @@ func (s *Server) handleSubscribeHTTP(w http.ResponseWriter, r *http.Request, v *
 		closed = true
 		wlock.Unlock()
 	}()
+	subscriber := v
 	sub := func(v *visitor, msg *model.Message) error {
 		if !filters.Pass(msg) {
 			return nil
@@ -1524,6 +1532,7 @@ func (s *Server) handleSubscribeHTTP(w http.ResponseWriter, r *http.Request, v *
 		if fl, ok := w.(http.Flusher); ok {
 			fl.Flush()
 		}
+		logSubscriptionWrite(subscriber, r, msg, contentType, []byte(encoded))
 		return nil
 	}
 	if err := s.maybeSetRateVisitors(r, v, topics); err != nil {
@@ -1668,6 +1677,7 @@ func (s *Server) handleSubscribeWS(w http.ResponseWriter, r *http.Request, v *vi
 			}
 		}
 	})
+	subscriber := v
 	sub := func(v *visitor, msg *model.Message) error {
 		if !filters.Pass(msg) {
 			return nil
@@ -1677,7 +1687,11 @@ func (s *Server) handleSubscribeWS(w http.ResponseWriter, r *http.Request, v *vi
 		if err := conn.SetWriteDeadline(time.Now().Add(wsWriteWait)); err != nil {
 			return err
 		}
-		return conn.WriteJSON(msg)
+		if err := conn.WriteJSON(msg); err != nil {
+			return err
+		}
+		logSubscriptionWrite(subscriber, r, msg, "websocket", nil)
+		return nil
 	}
 	if err := s.maybeSetRateVisitors(r, v, topics); err != nil {
 		return err

@@ -1,0 +1,32 @@
+services:
+  ntfy:
+    build:
+      context: ..
+      dockerfile: observer/Dockerfile
+    command: ["serve", "--config", "/etc/ntfy/server.yml"]
+    environment:
+      NTFY_BASE_URL: https://${PUBLIC_DOMAIN:?Set PUBLIC_DOMAIN in .env}
+      NTFY_LISTEN_HTTP: :80
+      NTFY_CACHE_FILE: /data/cache.db
+      NTFY_LOG_FILE: /data/requests.jsonl
+      NTFY_BEHIND_PROXY: "true"
+      NTFY_PROXY_FORWARDED_HEADER: X-Observer-Client-IP
+      NTFY_WEB_ROOT: /app
+    volumes:
+      - ./server.yml:/etc/ntfy/server.yml:ro
+      - ./private-data:/data
+    restart: unless-stopped
+  caddy:
+    image: caddy:2
+    ports: ["80:80", "443:443"]
+    environment:
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:?Set PUBLIC_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./site:/srv:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+volumes:
+  caddy_data:
+  caddy_config:

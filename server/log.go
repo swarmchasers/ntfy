@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"net/http"
@@ -78,8 +79,11 @@ func httpContext(r *http.Request) log.Context {
 		requestURI = r.URL.Path
 	}
 	return log.Context{
-		"http_method": r.Method,
-		"http_path":   requestURI,
+		"http_method":     r.Method,
+		"http_request_id": r.Context().Value(contextRequestID),
+		"http_peer_addr":  r.RemoteAddr,
+		"http_host":       r.Host,
+		"http_path":       requestURI,
 	}
 }
 
@@ -98,7 +102,8 @@ func websocketErrorContext(err error) log.Context {
 }
 
 func renderHTTPRequest(r *http.Request) string {
-	peekLimit := 4096
+	// Match the default JSON publish-body limit; larger requests are explicitly truncated.
+	peekLimit := jsonBodyBytesLimit
 	lines := fmt.Sprintf("%s %s %s\n", r.Method, r.URL.RequestURI(), r.Proto)
 	for key, values := range r.Header {
 		for _, value := range values {
@@ -124,4 +129,25 @@ func renderHTTPRequest(r *http.Request) string {
 	}
 	r.Body = body // Important: Reset body, so it can be re-read
 	return strings.TrimSpace(lines)
+}
+
+// logSubscriptionWrite records messages handed to a subscription's transport.
+// It is not an acknowledgement of client receipt, comprehension, or reuse.
+// subscriber must be the reader, not the publishing visitor passed to a live callback.
+func logSubscriptionWrite(subscriber *visitor, r *http.Request, m *model.Message, transport string, encoded []byte) {
+	if m.Event != model.MessageEvent {
+		return
+	}
+	ev := logvrm(subscriber, r, m).Tag(tagSubscribe)
+	if !ev.IsDebug() {
+		return
+	}
+	ev = ev.Fields(log.Context{
+		"observation_event":      "subscription_message_written",
+		"subscription_transport": transport,
+	})
+	if encoded != nil {
+		ev = ev.Field("response_chunk_sha256", fmt.Sprintf("%x", sha256.Sum256(encoded)))
+	}
+	ev.Debug("Subscription message written")
 }
